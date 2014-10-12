@@ -22,7 +22,7 @@ try:
 except ImportError:
   from gi.repository import AppIndicator
 
-from gi.repository import Gtk
+from gi.repository import Gtk, GLib, Notify
 
 BBSWITCH_INTERFACE = "/proc/acpi/bbswitch"
 
@@ -62,8 +62,20 @@ class BumblebeeIndicator(object):
     self.menu.show()
     self.indicator.set_menu(self.menu)
 
+    self.state = self.check_for_card_state()
+    self.card_state_change(self.state)
+
+    Notify.init("bumblebee-indicator")
+    self.notification = None
+
+    # not ideal
+    GLib.timeout_add_seconds(4, self.handler_timeout)
+
+  def handler_timeout(self):
     state = self.check_for_card_state()
-    self.card_state_change(state, True)
+    print "current state: {}, last: {}".format(state, self.state)
+    self.card_state_change(state)
+    return True
 
   def check_for_card_state(self):
     if not os.path.exists(BBSWITCH_INTERFACE):
@@ -78,17 +90,24 @@ class BumblebeeIndicator(object):
     if "OFF" in data:
       return "OFF"
 
-    return "UNKNOWN"
-
-  def card_state_change(self, new_state, initial=False):
+  def card_state_change(self, new_state):
     new_state = new_state.upper()
-    self.card_state_menu_item.set_label("Graphics card: {}".format(new_state))
+    text = "Graphics card: {}".format(new_state)
+    self.card_state_menu_item.set_label(text)
     if new_state == "ON":
       indicator_state = AppIndicator.IndicatorStatus.ATTENTION
     else:
       indicator_state = AppIndicator.IndicatorStatus.ACTIVE
 
     self.indicator.set_status(indicator_state)
+
+    if self.state != new_state:
+      self.state = new_state
+      self.notification = Notify.Notification.new("Bumblebee", text, "dialog-information")
+      self.notification.show()
+      # until https://bugs.launchpad.net/ubuntu/+source/notify-osd/+bug/390508
+      # is fixed, this doesn't work
+      # self.notification.set_timeout(0.5)
 
   def handler_menu_exit(self, evt):
     Gtk.main_quit()
