@@ -73,7 +73,6 @@ class BumblebeeIndicator(object):
 
   def handler_timeout(self):
     state = self.check_for_card_state()
-    print "current state: {}, last: {}".format(state, self.state)
     self.card_state_change(state)
     return True
 
